@@ -15,7 +15,6 @@ The "/arduino/z80controller" folder contains the sketch for the Arduino Nano bas
 The "/forth" folder contains the source code for the Forth operating system. This is a custom Forth implementation that is not ANSI compliant and works a little differently than most traditional Forth implementations.
 The "/forth/forth.cpp" file is the C++ file that contains a Forth interpreter/compiler prototype that was used for porting the interpreter to Z80 assembly.
 The "/forth/z80os.asm" file is the assembly file that contains the ported version of the Forth interpreter from the C++ file; it is specifically written for the KH-LF57K computer but should be easy to port to another Z80 based system by modifying the addresses and input/output subroutines; it also contains a 2 byte header that holds the size of the code to be uploaded to the Arduino for EEPROM programming.
-
-The "/buildscript.sh" file is a script that re-compiles the assembly file every time there is a change to it.
+The "/forth/buildscript.sh" file is a script that re-compiles the assembly file every time there is a change to it.
 
 The "/z80os-0.8.bin" file is the compiled version of the "/forth/z80os.asm" file; the first 2 bytes are the size of the program, the rest is the program starting from address $0000.
