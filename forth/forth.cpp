@@ -1,4 +1,6 @@
 #include <iostream>
+#include <stdint.h>
+#include <cstdlib>
 using namespace std;
 
 /*  1B flags & size (machine code, immediate, compiler only, 5b size)
@@ -316,18 +318,18 @@ uint16_t findWord(uint16_t dat){ //finds address of word
 	uint16_t p = words[0x0183] | words[0x0184]<<8; //latest word
 	uint16_t t;
 	uint8_t wlen;
-	uint8_t dlen = strlen(dat);
-	while(true){
-		wlen = words[p] & 0x1f;
+	uint8_t dlen = strlen(dat); //get len of target word
+	do{
+		wlen = words[p] & 0x1f; //get len of word
 		t = p + 3; //start of word name
-		for(y=0; y<wlen; y++) words[0x02a9+y] = words[t+y]; //use temporary buffer
-		words[0x02a9+y] = 0;
-		if(dispWords) cout << words+0x02a9 << " ";
-		if(wlen == dlen && strcmp(dat,0x02a9)) break;
+		for(y=0; y!=wlen; y++) words[0x02a9+y] = words[t+y]; //use temporary buffer
+		words[0x02a9+y] = 0; //terminate tmp buff
+		if(dispWords) cout << words+0x02a9 << " "; //display words
+		if(wlen == dlen && strcmp(dat,0x02a9)) break; //break if found word
 		t = words[++p]; //get next word address
 		t |= words[++p] << 8;
 		p = t;
-		if(p == 0xffff) break; }
+	} while(p != 0xffff);
 	return p;
 }
 void machineWord(uint16_t); //just a function prototype
@@ -533,10 +535,10 @@ int main(){
 	int y, x;
 	
 	cout << "  uForth v0.9" << endl;
-	cout << "(c) y47 KH-Labs" << endl;
+	cout << "(c) y47 KH-Labs";
 	
 	while(true){
-		cout << ">>";
+		cout << endl << ">> ";
 		cin.getline((char*)(words+0x0187),256); //store to memory
 		words[0x02a8] = strlen(0x0187); //inplen
 		words[0x02a7] = 0; //inpind
