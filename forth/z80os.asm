@@ -233,6 +233,29 @@ getWord:
 	ld bc,wordbuff-1 ;bc = wordbuff-1;
 getWord2:
 	call getKey ;do{ a = getKey();
+	push af ;cout << a
+	call serial
+	pop af
+	cp $0d ;if(a == 0x0d) cout << 0x0a
+	jp nz,getWord4
+	push af
+	ld a,$0a
+	call serial
+	pop af
+	jp getWord5
+getWord4:
+	cp $08 ;else if(a == 0x08){
+	jp nz,getWord5
+	push af ;cout << ' ' << 0x08
+	ld a,$20
+	call serial
+	ld a,$08
+	call serial
+	pop af
+	dec bc ;bc--
+	dec d ;d-- }
+	jp getWord2
+getWord5:
 	inc bc ;bc++;
 	inc d ;d++;
 	ld (bc),a ;words[bc] = a;
@@ -585,7 +608,7 @@ findWords7:
 	ret					;return bc
 
 ;initializes system variables and stuff
-init:
+init: ;tested
 	di
 	ld sp,$ffff
 	ld hl,latestWord ;wordlatest =
@@ -602,7 +625,7 @@ init:
 	call print
 
 ;the shell part of the forth interpreter
-main:
+main: ;tested
 	ld bc,cursortext	;while(true){ cout << ">> ";
 	call print
 	call getInput			;cin.getline(inpbuff,256); //store to memory
@@ -641,7 +664,7 @@ main5:
 	jp z,main3
 	ld a,(bc)
 	bit 6,a
-	jp z,main3
+	jp nz,main3
 	ld h,b								;fstackpush(waddr);
 	ld l,c
 	call fstackpush
@@ -685,7 +708,7 @@ main6:							;} else{ //throw an error
 	jp main							;break; } } }
 
 headertext:
-db "  uForth v0.9",$0d,$0a
+db " uForth v0.9.4",$0d,$0a
 db "(c) y47 KH-Labs",$00
 cursortext:
 db $0d,$0a,">> ",$00
@@ -694,14 +717,16 @@ db $0d,$0a,"Err: Stack Overflow",$0d,$0a,$00
 stackunderflowtext:
 db $0d,$0a,"Err: Stack Underflow",$0d,$0a,$00
 comperrtext1:
-db "Err: '",$00
+db $0d,$0a,"Err: '",$00
 comperrtext2:
-db "' is a compile only word",$0d,$0a,$00
+db "' is a compile only word",$00
 worderrtext:
-db "' is not a word",$0d,$0a,$00
+db "' is not a word",$00
+debugtext:
+db "debug!",$00
 
 ; LIT		101		( -- n1 ) get next number from program and push to stack
-LIT:
+LIT: ;tested
 	db $a3,$ff,$ff,"LIT"
 	call rtnpull ;hl = rtnpull();
 	ld c,(hl) ;bc = words[hl+1]<<8 | words[hl];
@@ -716,7 +741,7 @@ LIT:
 	call fstackpush
 	ret
 ; ,			100		( n1 -- ) writes n1 into the memory at WEND and updates WEND position
-comma:
+comma: ;tested
 	db $81,LIT&$ff,LIT>>8,","
 	call fstackpull ;tmp = fstackpull();
 	ld bc,(wordend) ;words[*(uint16_t*)(wordend)] = tmp & 0xff
@@ -729,7 +754,7 @@ comma:
 	ld (wordend),bc
 	ret
 ; +			100		( n1 n2 -- n3 ) add n2 to n1
-plus:
+plus: ;tested
 	db $81,comma&$ff,comma>>8,"+"
 	call fstackpull ;bc = fstackpull()
 	push hl
@@ -739,7 +764,7 @@ plus:
 	call fstackpush ;fstackpush(hl)
 	ret
 ; -			100		( n1 n2 -- n3 ) subtract n2 from n1
-minus:
+minus: ;tested
 	db $81,plus&$ff,plus>>8,"-"
 	call fstackpull ;bc = fstackpull()
 	push hl
@@ -750,7 +775,7 @@ minus:
 	call fstackpush ;fstackpush(hl)
 	ret
 ; *			100		( n1 n2 -- n3 ) multiply n2 to n1
-times:
+times: ;tested
 	db $81,minus&$ff,minus>>8,"*"
 	call fstackpull ;bc = fstackpull()
 	push hl
@@ -762,7 +787,7 @@ times:
 	call fstackpush ;fstackpush(hl)
 	ret
 ; /mod		100		( n1 n2 -- n3 n4 ) divide and mod n2 from n1
-divmod:
+divmod: ;WIP, doesn't support negative
 	db $84,times&$ff,times>>8,"/mod"
 	call fstackpull ;bc = fstackpull()
 	push hl
@@ -776,54 +801,480 @@ divmod:
 	call fstackpush
 	ret
 ; emit		100		( n1 -- ) output the character of the ascii value of n1
-emit:
+emit: ;tested
 	db $84,divmod&$ff,divmod>>8,"emit"
 	call fstackpull ;hl = fstackpull()
 	ld a,l ;cout << l
 	call serial
 	ret
-latestWord:
-test:
-	db $04,emit&$ff,emit>>8,"test"
-	dw LIT,$0101,LIT,$0032,times,emit,$ffff
 ; .			100		( n1 -- ) display n1 followed by a space
+period: ;tested
+	db $81,emit&$ff,emit>>8,"."
+	call fstackpull ;hl = fstackpull()
+	call printNum ;cout << hl
+	ld a,$20 ;cout << ' '
+	call serial
+	ret
 ; CREATE	100		( n1 -- ) create the header for a word/constant/variable from string address n1
-; :			010		( -- ) start compiling sequence
+create: ;tested
+	db $86,period&$ff,period>>8,"CREATE"
+	call fstackpull ;hl = fstackpull();
+	ld bc,(wordend) ;bc = *(uint16_t*)(wordend); //start of this word
+	push bc ;words[bc] = strlen(hl); bc++; //lenflag byte
+	ld b,h
+	ld c,l
+	call strlen
+	pop bc
+	ld (bc),a
+	inc bc
+	ld a,(wordlatest) ;words[bc] = words[wordlatest]; bc++; //next ptr
+	ld (bc),a
+	inc bc
+	ld a,(wordlatest+1) ;words[bc] = words[wordlatest+1]; bc++;
+	ld (bc),a
+	inc bc
+	ld (wordend),bc ;*(uint16_t*)(wordend) = bc; //set wend
+	dec bc ;*(uint16_t*)(wordlatest) = bc-3; //set latest to this word
+	dec bc
+	dec bc
+	ld (wordlatest),bc
+	ld bc,(wordend) ;bc = *(uint16_t*)(wordend);
+create2:
+	ld a,(hl) ;while(words[hl]){ //insert word
+	cp $00
+	jp z,create3
+	ld (bc),a ;words[bc] = words[hl];
+	inc bc ;bc++; hl++
+	inc hl
+	jp create2 ;}
+create3:
+	ld (wordend),bc ;*(uint16_t*)(wordend) = bc;
+	ret
+; c!		100		( n1 n2 -- ) save the low 8 bits of n1 to the address n2
+cex: ;tested
+	db $82,create&$ff,create>>8,"c!"
+	call fstackpull
+	push hl
+	call fstackpull
+	ld a,l
+	pop hl
+	ld (hl),a
+	ret
+; c@		100		( n1 -- n2 ) get the byte at the address n1
+cat: ;tested
+	db $82,cex&$ff,cex>>8,"c@"
+	call fstackpull
+	ld a,(hl)
+	ld h,$00
+	ld l,a
+	call fstackpush
+	ret
+; !			100		( n1 n2 -- ) save n1 to the address n2
+exp: ;tested
+	db $81,cat&$ff,cat>>8,"!"
+	call fstackpull
+	push hl
+	call fstackpull
+	ld b,h
+	ld c,l
+	pop hl
+	ld (hl),c
+	inc hl
+	ld (hl),b
+	ret
+; @			100		( n1 -- n2 ) get the value at the address n1
+ats: ;tested
+	db $81,exp&$ff,exp>>8,"@"
+	call fstackpull
+	ld c,(hl)
+	inc hl
+	ld b,(hl)
+	ld h,b
+	ld l,c
+	call fstackpush
+	ret
+; STATE		000		( -- n1 ) leave the address of the state variable in the stack, 0 is interpret, -1 is compile
+statevar: ;tested
+	db $05,ats&$ff,ats>>8,"STATE"
+	dw LIT,state,$ffff
+; LATEST	000		( -- n1 ) leave the address of the latest word variable in the stack
+latest: ;tested
+	db $06,statevar&$ff,statevar>>8,"LATEST"
+	dw LIT,wordlatest,$ffff
+; WEND		000		( -- n1 ) leave the address of the end of words variable in the stack
+wend: ;tested
+	db $04,latest&$ff,latest>>8,"WEND"
+	dw LIT,wordend,$ffff
+; BKEY		101		( -- n1 ) gets next char from input buffer and leaves in stack
+bkey: ;tested
+	db $a4,wend&$ff,wend>>8,"BKEY"
+	call getBuffKey
+	ld h,$00
+	ld l,a
+	call fstackpush
+	ret
+; BWORD		101		( -- n1 ) gets next word in input buffer and leaves address in stack
+bword: ;tested
+	db $a5,bkey&$ff,bkey>>8,"BWORD"
+	call getBuffWord
+	ld hl,wordbuff
+	call fstackpush
+	ret
+; :			010		( -- ) start compiling sequence, create and state to -1
+colon: ;tested
+	db $41,bword&$ff,bword>>8,":"
+	dw LIT,$ffff,statevar,cex,bword,create,$ffff
 ; ;			011		( -- ) add 0xffff to the end of program and make state 0
-; =			100		( n1 n2 -- n3 ) true if n1 equals n2, else false
-; <>		100		( n1 n2 -- n3 ) true if n1 not equals n2, else false
-; <			100		( n1 n2 -- n3 ) true if n1 less than n2, else false
-; >			100		( n1 n2 -- n3 ) true if n1 greater than n2, else false
-; <=		100		( n1 n2 -- n3 ) true if n1 less than equal n2, else false
-; >=		100		( n1 n2 -- n3 ) true if n1 greater than equal n2, else false
-; and		100		( n1 n2 -- n3 ) logic and n1 & n2
-; or		100		( n1 n2 -- n3 ) logic or n1 & n2
-; xor		100		( n1 n2 -- n3 ) logic xor n1 & n2
-; .s		100		( -- ) display all the numbers in the stack without popping the stack
+semicolon: ;tested
+	db $61,colon&$ff,colon>>8,";"
+	dw LIT,$ffff,comma,LIT,$0000,statevar,cex,$ffff
+; key		100		( -- n1 ) get the ascii value of the first key pressed
+key: ;tested
+	db $83,semicolon&$ff,semicolon>>8,"key"
+	call getKey
+	ld h,$00
+	ld l,a
+	call fstackpush
+	ret
+; word		100		( -- n1) gets a string from input and leaves the address of the string
+gword: ;tested
+	db $84,key&$ff,key>>8,"word"
+	call getWord
+	ld hl,wordbuff
+	call fstackpush
+	ret
+; number	100		( -- n1 ) gets a number from input
+number: ;tested
+	db $86,gword&$ff,gword>>8,"number"
+	call getWord
+	ld bc,wordbuff
+	call toNum
+	call fstackpush
+	ret
+; words		100		( -- ) display all the words in the forth dictionary
+words: ;tested
+	db $85,number&$ff,number>>8,"words"
+	ld a,$ff
+	ld (dispwords),a
+	ld a,$00
+	ld (wordbuff),a
+	call findWord
+	ld a,$00
+	ld (dispwords),a
+	ret
+; swap		100		( n1 n2 -- n2 n1 ) switch the top 2 elements on the stack
+swap: ;tested
+	db $84,words&$ff,words>>8,"swap"
+	call fstackpull
+	push hl
+	call fstackpull
+	pop de
+	ex de,hl
+	push de
+	call fstackpush
+	pop hl
+	call fstackpush
+	ret
+; dup		100		( n1 -- n1 n1 ) duplicates top of stack
+dupl: ;tested
+	db $83,swap&$ff,swap>>8,"dup"
+	call fstackpull
+	push hl
+	call fstackpush
+	pop hl
+	call fstackpush
+	ret
 ; drop		100		( n1 -- ) pop n1 from stack
+drop: ;tested
+	db $84,dupl&$ff,dupl>>8,"drop"
+	call fstackpull
+	ret
+; =			100		( n1 n2 -- n3 ) true if n1 equals n2, else false
+equal: ;tested
+	db $81,drop&$ff,drop>>8,"="
+	call fstackpull
+	push hl
+	call fstackpull
+	pop bc
+	or a
+	sbc hl,bc
+	ld a,h
+	or l
+	cp $00
+	jp z,equal2
+	ld hl,$0000
+	call fstackpush
+	ret
+equal2:
+	ld hl,$ffff
+	call fstackpush
+	ret
+; <>		100		( n1 n2 -- n3 ) true if n1 not equals n2, else false
+nequ: ;tested
+	db $82,equal&$ff,equal>>8,"<>"
+	call equal+4
+	call fstackpull
+	ld a,h
+	xor $ff
+	ld h,a
+	ld a,l
+	xor $ff
+	ld l,a
+	call fstackpush
+	ret
+; <			100		( n1 n2 -- n3 ) true if n1 less than n2, else false
+lesst: ;tested
+	db $81,nequ&$ff,nequ>>8,"<"
+	call fstackpull
+	push hl
+	call fstackpull
+	pop bc
+	or a
+	sbc hl,bc
+	bit 7,h
+	jp z,lesst2
+	ld hl,$ffff
+	call fstackpush
+	ret
+lesst2:
+	ld hl,$0000
+	call fstackpush
+	ret
+; >			100		( n1 n2 -- n3 ) true if n1 greater than n2, else false
+gtrt: ;tested
+	db $81,lesst&$ff,lesst>>8,">"
+	call fstackpull
+	push hl
+	call fstackpull
+	pop bc
+	or a
+	sbc hl,bc
+	bit 7,h
+	jp nz,gtrt2
+	ld a,h
+	or l
+	cp $00
+	jp z,gtrt2
+	ld hl,$ffff
+	call fstackpush
+	ret
+gtrt2:
+	ld hl,$0000
+	call fstackpush
+	ret
+; <=		100		( n1 n2 -- n3 ) true if n1 less than equal n2, else false
+lesseq: ;tested
+	db $82,gtrt&$ff,gtrt>>8,"<="
+	call gtrt+4
+	call fstackpull
+	ld a,h
+	xor $ff
+	ld h,a
+	ld a,l
+	xor $ff
+	ld l,a
+	call fstackpush
+	ret
+; >=		100		( n1 n2 -- n3 ) true if n1 greater than equal n2, else false
+gtrequ: ;tested
+	db $82,lesseq&$ff,lesseq>>8,">="
+	call lesst+4
+	call fstackpull
+	ld a,h
+	xor $ff
+	ld h,a
+	ld a,l
+	xor $ff
+	ld l,a
+	call fstackpush
+	ret
+; and		100		( n1 n2 -- n3 ) logic and n1 & n2
+andd: ;tested
+	db $83,gtrequ&$ff,gtrequ>>8,"and"
+	call fstackpull
+	push hl
+	call fstackpull
+	pop bc
+	ld a,h
+	and b
+	ld h,a
+	ld a,l
+	and c
+	ld l,a
+	call fstackpush
+	ret
+; or		100		( n1 n2 -- n3 ) logic or n1 & n2
+orr: ;tested
+	db $82,andd&$ff,andd>>8,"or"
+	call fstackpull
+	push hl
+	call fstackpull
+	pop bc
+	ld a,h
+	or b
+	ld h,a
+	ld a,l
+	or c
+	ld l,a
+	call fstackpush
+	ret
+; xor		100		( n1 n2 -- n3 ) logic xor n1 & n2orr:
+xxor: ;tested
+	db $83,orr&$ff,orr>>8,"xor"
+	call fstackpull
+	push hl
+	call fstackpull
+	pop bc
+	ld a,h
+	xor b
+	ld h,a
+	ld a,l
+	xor c
+	ld l,a
+	call fstackpush
+	ret
+; .s		100		( -- ) display all the numbers in the stack without popping the stack
+dots: ;tested
+	db $82,xxor&$ff,xxor>>8,".s"
+	ld a,$3d ;cout << "=>"
+	call serial
+	ld a,$3e
+	call serial
+	ld bc,datastack ;bc = datastack
+	ld d,$00 ;d = 0
+dots2:
+	ld a,(dstackptr) ;while(d != words[dstackptr]){
+	cp d
+	ret z
+	ld a,$20 ;cout << ' '
+	call serial
+	ld a,(bc) ;l = words[bc++]
+	ld l,a
+	inc bc
+	ld a,(bc) ;h = words[bc++]
+	ld h,a
+	inc bc
+	inc d ;d += 2
+	inc d
+	push bc ;cout << hl
+	push de
+	call printNum
+	pop de
+	pop bc
+	jp dots2 ;}
+; reboot	100		( -- ) restarts the computer
+exit: ;tested
+	db $86,dots&$ff,dots>>8,"reboot"
+	rst 0
+	ret
+; >r		100		( n1 -- ) push n1 to the return stack
+pushr: ;tested
+	db $82,exit&$ff,exit>>8,">r"
+	call fstackpull
+	call rtnpush
+	ret
+; r>		100		( -- n1 ) pop n1 from the return stack
+pullr: ;tested
+	db $82,pushr&$ff,pushr>>8,"r>"
+	call rtnpull
+	call fstackpush
+	ret
+; r@		100		( -- n1 ) copy the top value from the return stack
+rat: ;tested
+	db $82,pullr&$ff,pullr>>8,"r@"
+	call rtnpull
+	push hl
+	call rtnpush
+	pop hl
+	call fstackpush
+	ret
+; >l		100		( n1 -- ) push n1 to the loop stack
+pushl: ;tested
+	db $82,rat&$ff,rat>>8,">l"
+	call fstackpull
+	call lppush
+	ret
+; l>		100		( -- n1 ) pop n1 from the loop stack
+pulll: ;tested
+	db $82,pushl&$ff,pushl>>8,"l>"
+	call lppull
+	call fstackpush
+	ret
+; type		100		( n1 -- ) string is displayed starting from the address n1
+typee: ;tested
+	db $84,pulll&$ff,pulll>>8,"type"
+	call fstackpull
+	ld b,h
+	ld c,l
+	call print
+	ret
+; FIND		100		( -- n1 ) find the address n1 of a word with name in wordbuff
+find: ;tested
+	db $84,typee&$ff,typee>>8,"FIND"
+	call findWord
+	ld h,b
+	ld l,c
+	call fstackpush
+	ret
+; WBUFF		000		( -- n1 ) leaves the address of the start of the word buffer in the stack
+wbuff: ;tested
+	db $05,find&$ff,find>>8,"WBUFF"
+	dw LIT,wordbuff,$ffff
+; EXEC		100		( n1 -- ) executes the word with address n1
+exec: ;tested
+	db $84,wbuff&$ff,wbuff>>8,"EXEC"
+	call fstackpull
+	ld b,h
+	ld c,l
+	call execWord
+	ret
+; BRANCH	101		( -- ) replace the top of return stack with next number in program
+branch: ;tested
+	db $a6,exec&$ff,exec>>8,"BRANCH"
+	call rtnpull ;bc = rtnpull();
+	ld b,h
+	ld c,l
+	ld a,(bc) ;l = words[bc++];
+	ld l,a
+	inc bc
+	ld a,(bc) ;h = words[bc] << 8;
+	ld h,a
+	call rtnpush ;rtnpush(hl);
+	ret
+; 0BRANCH	101		( -- ) replace the top of return stack with next number in program if top of stack is 0
+branch0: ;tested
+	db $a7,branch&$ff,branch>>8,"0BRANCH"
+	call fstackpull ;if(fstackpull()){ //branch past
+	ld a,h
+	or l
+	cp $00
+	jp z,branch02
+	call rtnpull ;	tmp2 = rtnpull();
+	inc hl ;	rtnpush(tmp2+2);
+	inc hl
+	call rtnpush
+	ret
+branch02:
+	call branch ;} else branch() //branch to addr
+	ret
+; VERSION	000		( -- ) leave the forth version * 100 on the stack
+version: ;tested
+	db $07,branch0&$ff,branch0>>8,"VERSION"
+	dw LIT,$005e,$ffff
+; constant	010		( n1 -- ) create a word that leaves the value n1 in the stack
+constant: ;tested
+	db $48,version&$ff,version>>8,"constant"
+	dw bword,create,LIT,LIT,comma,comma,LIT,$ffff,comma,$ffff
+; variable	010		( -- ) create a word that leaves the address for a variable in the stack
+latestWord:
+variable: ;tested
+	db $48,constant&$ff,constant>>8,"variable"
+	dw bword,create,LIT,LIT,comma,wend,ats,LIT,$0004,plus,comma,LIT,$ffff,comma,LIT,$0000,comma,$ffff
+; +!		100		( n1 n2 -- ) adds n1 to the value at address n2
 ; pick		100		( n1 n2 +n -- n1 n2 n1 ) copy the +nth value from stack (not counting +n, starting at 0) and place on top
 ; roll		100		( n1 n2 +n -- n2 n1 ) move the +nth value from stack (not counting +n, starting at 0) to the top of stack
-; words		100		( -- ) display all the words in the forth dictionary
-; exit		100		( -- ) returns execution to operating system or shuts down computer
-; !			100		( n1 n2 -- ) save n1 to the address n2
-; @			100		( n1 -- n2 ) get the value at the address n1
-; c!		100		( n1 n2 -- ) save the low 8 bits of n1 to the address n2
-; c@		100		( n1 -- n2 ) get the byte at the address n1
-; >r		100		( n1 -- ) push n1 to the return stack
-; r>		100		( -- n1 ) pop n1 from the return stack
-; r@		100		( -- n1 ) copy the top value from the return stack
-; key		100		( -- n1 ) get the ascii value of the first key pressed
-; word		100		( -- n1) gets a string from input and leaves the address of the string
-; number	100		( -- n1 ) gets a number from input
-; type		100		( n1 -- ) string is displayed starting from the address n1
 ; count		100		( n1 -- n2 ) gets the length of a string at n1 and puts the length n2 on the stack
 ; compare	100		( n1 n2 -- n3 ) compares strings at address n1 and n2 and returns 0 for false or -1 for true
-; FIND		100		( n1 -- n2 ) find the address n2 of a word with name starting at n1
-; EXEC		100		( n1 -- ) executes the word with address n1
-; LATEST	000		( -- n1 ) leave the address of the latest word variable in the stack
-; WEND		000		( -- n1 ) leave the address of the end of words variable in the stack
-; swap		000		( n1 n2 -- n2 n1 ) switch the top 2 elements on the stack
-; dup		000		( n1 -- n1 n1 ) duplicates top of stack
 ; /			000		( n1 n2 -- n3 ) leaves division result of n1 and n2
 ; mod		000		( n1 n2 -- n3 ) leaves modulo result of n1 and n2
 ; negate	000		( n1 -- n2 ) leaves 2's complement of n1 in stack
@@ -833,20 +1284,9 @@ test:
 ; cells		000		( n1 -- n2 ) multiplies n1 with size of number cell (2 for 16 bit number system)
 ; cr		000		( -- ) prints a carriage return and new line
 ; invert	000		( n1 -- n2 ) logic not n1
-; STATE		000		( -- n1 ) leave the address of the state variable in the stack, 0 is interpret, -1 is compile
-; VERSION	000		( -- ) leave the forth version * 10 on the stack
-; BWORD		101		( -- n1 ) gets next word in input buffer and leaves address in stack
-; BKEY		101		( -- n1 ) gets next char from input buffer and leaves in stack
 ; allot		000		( n1 -- ) increment program end counter by n1
 ; IMMEDIATE	000		( -- ) toggle immediate flag on latest word
-; constant	010		( n1 -- ) create a word that leaves the value n1 in the stack
-; variable	010		( -- ) create a word that leaves the address for a variable in the stack
-; BRANCH	101		( -- ) replace the top of return stack with next number in program
-; 0BRANCH	101		( -- ) replace the top of return stack with next number in program if top of stack is 0
 ; (			010		( -- ) start of a comment, comment ends at first ) character
-; +!		100		( n1 n2 -- ) adds n1 to the value at address n2
-; >l		100		( n1 -- ) push n1 to the loop stack
-; l>		100		( -- n1 ) pop n1 from the loop stack
 ; begin		011		( -- ) specified return address for repeat/until
 ; until		011		( n1 -- ) branch to begin statement in begin-until loop if n1 is false
 ; while		111		( n1 -- ) branch past repeat if n1 is false in do-while-repeat loop

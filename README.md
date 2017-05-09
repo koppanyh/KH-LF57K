@@ -25,4 +25,4 @@ The capacitor on the computer is rated at 0.47 uf.
 
 The "/computer_real.jpg" and "/programmer_real.jpg" files are pictures of the actual computer and the actual programmer circuit. You'll might notice a few differences, like the chips being wider or the power supply being different, but those small details won't affect the computer.
 
-The "/z80os-0.8.bin" file is the compiled version of the "/forth/z80os.asm" file; the first 2 bytes are the size of the program, the rest is the program starting from address $0000.
+The "/z80os-0.9.4.bin" file is the compiled version of the "/forth/z80os.asm" file; the first 2 bytes are the size of the program, the rest is the program starting from address $0000.
