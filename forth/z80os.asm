@@ -1,4 +1,4 @@
-;Z80 Forth OS for the mini Z80 microcomputer
+;Z80 Forth OS for the KH-LF57K microcomputer
 ;Written by Koppany Horvath (c) y47
 
 ;use CuteCom to send the file
@@ -1257,7 +1257,7 @@ branch0: ;tested
 branch02:
 	call branch ;} else branch() //branch to addr
 	ret
-; VERSION	000		( -- ) leave the forth version * 100 on the stack
+; VERSION	000		( -- n1 ) leave the forth version * 100 on the stack
 version: ;tested
 	db $07,branch0&$ff,branch0>>8,"VERSION"
 	dw LIT,$005e,$ffff
