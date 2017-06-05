@@ -27,3 +27,10 @@ The "/computer_real.jpg" and "/programmer_real.jpg" files are pictures of the ac
 
 The "/z80os-0.9.4.bin" file is the compiled version of the "/forth/z80os.asm" file; the first 2 bytes are the size of the program, the rest is the program starting from address $0000.
 This file was compiled with version 1.8 of the z80asm assembler program.
+
+**To Do**
+* change stack address from $ffff to $0000
+* make ; command say OK instead of a blank new line
+* look into potential bug that looks through whole memory for command
+* write all built-in words in assembly for speed
+* fix all comparisons to use the cp opcode instead of sbc
