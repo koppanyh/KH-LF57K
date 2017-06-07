@@ -32,5 +32,10 @@ This file was compiled with version 1.8 of the z80asm assembler program.
 * change stack address from $ffff to $0000
 * make ; command say OK instead of a blank new line
 * look into potential bug that looks through whole memory for command
-* write all built-in words in assembly for speed
+* write all built-in words in assembly for speed and finish words in assembly
 * fix all comparisons to use the cp opcode instead of sbc
+* fix space being read as 0 issue
+* add over/underflow errors to return and loop stacks
+* fix the stack functions to use the hardware stack
+* fix backspacing into other memory
+
