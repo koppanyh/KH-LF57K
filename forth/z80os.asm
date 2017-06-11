@@ -107,26 +107,11 @@ isNum:
 	jp z,isNum2
 	cp $2d ;if((words[bc] <= 47 || words[bc] >= 58) && words[bc] != '-')
 	jp z,isNum
+	cp $3a
+	jp nc,isNum1
 	cp $30
-	jp z,isNum
-	cp $31
-	jp z,isNum
-	cp $32
-	jp z,isNum
-	cp $33
-	jp z,isNum
-	cp $34
-	jp z,isNum
-	cp $35
-	jp z,isNum
-	cp $36
-	jp z,isNum
-	cp $37
-	jp z,isNum
-	cp $38
-	jp z,isNum
-	cp $39
-	jp z,isNum ;}
+	jp nc,isNum
+isNum1:
 	ld a,$00 ;return false
 	ret
 isNum2:
@@ -610,7 +595,7 @@ findWords7:
 ;initializes system variables and stuff
 init: ;tested
 	di
-	ld sp,$ffff
+	ld sp,$0000
 	ld hl,latestWord ;wordlatest =
 	ld (wordlatest),hl
 	ld hl,freeSpace ;wordend =
@@ -708,7 +693,7 @@ main6:							;} else{ //throw an error
 	jp main							;break; } } }
 
 headertext:
-db " uForth v0.9.4",$0d,$0a
+db " uForth v0.9.5",$0d,$0a
 db "(c) y47 KH-Labs",$00
 cursortext:
 db $0d,$0a,">> ",$00
@@ -722,9 +707,8 @@ comperrtext2:
 db "' is a compile only word",$00
 worderrtext:
 db "' is not a word",$00
-debugtext:
-db "debug!",$00
 
+;			machine,immediate,compiler
 ; LIT		101		( -- n1 ) get next number from program and push to stack
 LIT: ;tested
 	db $a3,$ff,$ff,"LIT"
@@ -927,7 +911,8 @@ colon: ;tested
 ; ;			011		( -- ) add 0xffff to the end of program and make state 0
 semicolon: ;tested
 	db $61,colon&$ff,colon>>8,";"
-	dw LIT,$ffff,comma,LIT,$0000,statevar,cex,$ffff
+	dw LIT,$ffff,comma,LIT,$0000,statevar,cex
+	dw LIT,$004f,emit,LIT,$004b,emit,$ffff
 ; key		100		( -- n1 ) get the ascii value of the first key pressed
 key: ;tested
 	db $83,semicolon&$ff,semicolon>>8,"key"
@@ -1260,7 +1245,7 @@ branch02:
 ; VERSION	000		( -- n1 ) leave the forth version * 100 on the stack
 version: ;tested
 	db $07,branch0&$ff,branch0>>8,"VERSION"
-	dw LIT,$005e,$ffff
+	dw LIT,$005f,$ffff
 ; constant	010		( n1 -- ) create a word that leaves the value n1 in the stack
 constant: ;tested
 	db $48,version&$ff,version>>8,"constant"
@@ -1270,6 +1255,7 @@ latestWord:
 variable: ;tested
 	db $48,constant&$ff,constant>>8,"variable"
 	dw bword,create,LIT,LIT,comma,wend,ats,LIT,$0004,plus,comma,LIT,$ffff,comma,LIT,$0000,comma,$ffff
+; cr		000		( -- ) prints a carriage return and new line
 ; +!		100		( n1 n2 -- ) adds n1 to the value at address n2
 ; pick		100		( n1 n2 +n -- n1 n2 n1 ) copy the +nth value from stack (not counting +n, starting at 0) and place on top
 ; roll		100		( n1 n2 +n -- n2 n1 ) move the +nth value from stack (not counting +n, starting at 0) to the top of stack
@@ -1282,7 +1268,6 @@ variable: ;tested
 ; rot		000		( n1 n2 n3 -- n2 n3 n1 ) rotates third number in stack to top
 ; -rot		000		( n1 n2 n3 -- n3 n1 n2 ) rotates top number to third place in stack
 ; cells		000		( n1 -- n2 ) multiplies n1 with size of number cell (2 for 16 bit number system)
-; cr		000		( -- ) prints a carriage return and new line
 ; invert	000		( n1 -- n2 ) logic not n1
 ; allot		000		( n1 -- ) increment program end counter by n1
 ; IMMEDIATE	000		( -- ) toggle immediate flag on latest word
