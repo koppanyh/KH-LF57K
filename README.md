@@ -1,7 +1,7 @@
 # KH-LF57K
 Code and design files for a custom Z80 computer with Forth operating system.
 
-The KH-LF75K computer is a Z80 based single-board computer that was designed, built, and programmed by Koppany Horvath as a project for the University of La Verne's 2nd Mini Makers fair.
+The KH-LF75K computer is a Z80 based single-board computer that was designed, built, and programmed by Koppany Horvath as a project for the University of La Verne's 2nd Mini Makers fair. The first version (0.9.4) of the code was over 1300 lines of assembly and written in less than a week; no small feat when you consider that I never wrote a line of Z80 assembly before.
 
 This is a collection of the software files for the operating system itself as well as any firmware for the Arduino microcontrollers used. Schematics and documentation of the hardware will also be stored here.
 
@@ -32,7 +32,6 @@ This file was compiled with version 1.8 of the z80asm assembler program.
 * look into potential bug that looks through whole memory for command
 * write all built-in words in assembly for speed and finish words in assembly
 * fix all comparisons to use the cp opcode instead of sbc
-* fix space being read as 0 issue
 * add over/underflow errors to return and loop stacks
 * fix the stack functions to use the hardware stack
 * fix backspacing into other memory

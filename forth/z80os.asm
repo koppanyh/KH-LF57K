@@ -617,10 +617,14 @@ main: ;tested
 							;words[inplen] = strlen(inpbuff); //inplen
 							;words[inpind] = 0; //inpind
 main2:						;while(true){ //while words in buffer
-	call getBuffWord			;getBuffWord();
-	ld a,(wordbuff) 			;if(!words[wordbuff]) break;
-	cp $00
+	ld a,(inplen)				;if(inplen == inpind) break;
+	ld hl,inpind
+	cp (hl)
 	jp z,main
+	call getBuffWord			;getBuffWord();
+	ld a,(wordbuff) 			;if(!words[wordbuff]) break; //jump to top of while
+	cp $00
+	jp z,main2
 	call findWord				;waddr = findWord(wordbuff);
 	ld a,b						;if(waddr != 0xffff){ //check if in dict
 	and c
@@ -693,7 +697,7 @@ main6:							;} else{ //throw an error
 	jp main							;break; } } }
 
 headertext:
-db " uForth v0.9.5",$0d,$0a
+db " uForth v1.0.0",$0d,$0a
 db "(c) y47 KH-Labs",$00
 cursortext:
 db $0d,$0a,">> ",$00
@@ -1245,7 +1249,7 @@ branch02:
 ; VERSION	000		( -- n1 ) leave the forth version * 100 on the stack
 version: ;tested
 	db $07,branch0&$ff,branch0>>8,"VERSION"
-	dw LIT,$005f,$ffff
+	dw LIT,$0064,$ffff
 ; constant	010		( n1 -- ) create a word that leaves the value n1 in the stack
 constant: ;tested
 	db $48,version&$ff,version>>8,"constant"
